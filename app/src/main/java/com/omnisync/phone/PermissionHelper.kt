@@ -124,6 +124,19 @@ object PermissionHelper {
         return enabledListeners?.contains(context.packageName) == true
     }
 
+    fun isAccessibilityServiceEnabled(context: Context): Boolean {
+        val enabledServices = Settings.Secure.getString(
+            context.contentResolver,
+            "enabled_accessibility_services"
+        )
+        return enabledServices?.contains(context.packageName) == true
+    }
+
+    fun requestAccessibilityService(activity: Activity) {
+        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+        activity.startActivityForResult(intent, REQUEST_CODE_NOTIFICATION)
+    }
+
     fun isBatteryOptimizationDisabled(context: Context): Boolean {
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
         return powerManager.isIgnoringBatteryOptimizations(context.packageName)

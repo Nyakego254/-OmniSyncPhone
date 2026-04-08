@@ -46,7 +46,7 @@ class MainActivity : AppCompatActivity() {
         
         updatePermissionStatus()
         
-        if (!areAllPermissionsReady()) {
+        if (!areCorePermissionsReady()) {
             showPermissionSetupDialog()
         }
     }
@@ -96,7 +96,7 @@ class MainActivity : AppCompatActivity() {
         
         updatePermissionStatus()
         
-        if (!areAllPermissionsReady()) {
+        if (!areCorePermissionsReady()) {
             showNextPendingPermission()
         } else {
             onAllPermissionsReady()
@@ -106,7 +106,7 @@ class MainActivity : AppCompatActivity() {
     private fun showPermissionSetupDialog() {
         AlertDialog.Builder(this)
             .setTitle("Permission Setup")
-            .setMessage("OmniSync needs several permissions to sync your calls, SMS, and notifications. Would you like to set them up now?")
+            .setMessage("OmniSync needs permissions to sync your calls and SMS. Would you like to set them up now?\n\nNote: Notification access is optional - the app works with just calls and SMS.")
             .setPositiveButton("Yes, Setup") { _, _ ->
                 startPermissionFlow()
             }
@@ -129,28 +129,28 @@ class MainActivity : AppCompatActivity() {
 
     private fun showNextPendingPermission() {
         when {
-            !PermissionHelper.isNotificationListenerEnabled(this) -> {
-                pendingAction = PendingAction.NOTIFICATION
-                showSinglePermissionDialog(
-                    "Notification Access Required",
-                    "OmniSync needs notification access to sync your notifications. Tap 'Open Settings' to enable it.",
-                    "Open Settings"
-                ) {
-                    PermissionHelper.requestNotificationAccess(this)
-                }
-            }
             !PermissionHelper.isBatteryOptimizationDisabled(this) -> {
                 pendingAction = PendingAction.BATTERY
                 showSinglePermissionDialog(
-                    "Battery Optimization Required",
-                    "Disable battery optimization to ensure OmniSync works in the background. Tap 'Disable' to proceed.",
+                    "Battery Optimization",
+                    "Disable battery optimization to ensure OmniSync works in background.",
                     "Disable"
                 ) {
                     PermissionHelper.requestBatteryOptimization(this)
                 }
             }
+            !PermissionHelper.isAccessibilityServiceEnabled(this) -> {
+                pendingAction = PendingAction.NOTIFICATION
+                showSinglePermissionDialog(
+                    "Notification Access Required",
+                    "Enable accessibility service to sync notifications from apps.",
+                    "Enable"
+                ) {
+                    PermissionHelper.requestAccessibilityService(this)
+                }
+            }
             else -> {
-                if (areAllPermissionsReady()) {
+                if (areCorePermissionsReady()) {
                     onAllPermissionsReady()
                 }
             }
@@ -175,37 +175,26 @@ class MainActivity : AppCompatActivity() {
 
     private fun showSettingsDialog() {
         val items = mutableListOf<String>()
-        if (!PermissionHelper.isNotificationListenerEnabled(this)) {
-            items.add("Notification Listener")
-        }
+        items.add("Runtime Permissions")
         if (!PermissionHelper.isBatteryOptimizationDisabled(this)) {
             items.add("Battery Optimization")
         }
+        if (!PermissionHelper.isAccessibilityServiceEnabled(this)) {
+            items.add("Notification Access")
+        }
         items.add("Auto-start Settings")
         items.add("App Details")
-
-        if (items.isEmpty()) {
-            Toast.makeText(this, "All settings configured!", Toast.LENGTH_SHORT).show()
-            return
-        }
 
         AlertDialog.Builder(this)
             .setTitle("Open Settings")
             .setItems(items.toTypedArray()) { _, which ->
                 val item = items[which]
                 when {
-                    item == "Notification Listener" -> {
-                        PermissionHelper.requestNotificationAccess(this)
-                    }
-                    item == "Battery Optimization" -> {
-                        PermissionHelper.requestBatteryOptimization(this)
-                    }
-                    item == "Auto-start Settings" -> {
-                        PermissionHelper.openAutoStartSettings(this)
-                    }
-                    item == "App Details" -> {
-                        PermissionHelper.openAppSettings(this)
-                    }
+                    item == "Runtime Permissions" -> startPermissionFlow()
+                    item == "Battery Optimization" -> PermissionHelper.requestBatteryOptimization(this)
+                    item == "Notification Access" -> PermissionHelper.requestAccessibilityService(this)
+                    item == "Auto-start Settings" -> PermissionHelper.openAutoStartSettings(this)
+                    item == "App Details" -> PermissionHelper.openAppSettings(this)
                 }
             }
             .setNegativeButton("Cancel", null)
@@ -217,17 +206,17 @@ class MainActivity : AppCompatActivity() {
         updatePermissionView(Manifest.permission.READ_CALL_LOG, statusCallLog)
         updatePermissionView(Manifest.permission.READ_SMS, statusSms)
 
-        val notificationEnabled = PermissionHelper.isNotificationListenerEnabled(this)
-        statusNotification.text = if (notificationEnabled) "✓ Enabled" else "✗ Disabled"
-        statusNotification.setTextColor(if (notificationEnabled) 0xFF00FF00.toInt() else 0xFFFF0000.toInt())
+        val accessibilityEnabled = PermissionHelper.isAccessibilityServiceEnabled(this)
+        statusNotification.text = if (accessibilityEnabled) "✓ Enabled" else "✗ Disabled"
+        statusNotification.setTextColor(if (accessibilityEnabled) 0xFF00FF00.toInt() else 0xFFFF0000.toInt())
 
         val batteryOptimized = !PermissionHelper.isBatteryOptimizationDisabled(this)
         statusBattery.text = if (batteryOptimized) "✗ Enabled" else "✓ Disabled"
         statusBattery.setTextColor(if (batteryOptimized) 0xFFFF0000.toInt() else 0xFF00FF00.toInt())
 
         val autostartEnabled = isAutoStartEnabled()
-        statusAutostart.text = if (autostartEnabled) "✓ Enabled" else "✗ Check Required"
-        statusAutostart.setTextColor(if (autostartEnabled) 0xFF00FF00.toInt() else 0xFFFF0000.toInt())
+        statusAutostart.text = if (autostartEnabled) "✓ Enabled" else "○ Check Required"
+        statusAutostart.setTextColor(if (autostartEnabled) 0xFF00FF00.toInt() else 0xFF888888.toInt())
 
         updateSyncStatus()
     }
@@ -239,18 +228,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateSyncStatus() {
-        val allReady = areAllPermissionsReady()
+        val coreReady = areCorePermissionsReady()
 
-        if (allReady) {
-            tvStatus.text = "✓ All permissions granted - Sync active"
+        if (coreReady) {
+            val notifStatus = if (PermissionHelper.isAccessibilityServiceEnabled(this)) " + Notifications" else ""
+            tvStatus.text = "✓ Active$notifStatus"
             tvStatus.setTextColor(0xFF00FF00.toInt())
             btnRequestPermissions.isEnabled = false
             btnOpenSettings.isEnabled = true
         } else {
             val missingPermissions = mutableListOf<String>()
             if (!PermissionHelper.areAllRuntimePermissionsGranted(this)) missingPermissions.add("Permissions")
-            if (!PermissionHelper.isNotificationListenerEnabled(this)) missingPermissions.add("Notification")
             if (!PermissionHelper.isBatteryOptimizationDisabled(this)) missingPermissions.add("Battery")
+            if (!PermissionHelper.isAccessibilityServiceEnabled(this)) missingPermissions.add("Notifications")
             
             tvStatus.text = "⚠ ${missingPermissions.joinToString(", ")} required"
             tvStatus.setTextColor(0xFFFFA500.toInt())
@@ -259,15 +249,15 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun areAllPermissionsReady(): Boolean {
+    private fun areCorePermissionsReady(): Boolean {
         return PermissionHelper.areAllRuntimePermissionsGranted(this) &&
-                PermissionHelper.isNotificationListenerEnabled(this) &&
-                PermissionHelper.isBatteryOptimizationDisabled(this)
+                PermissionHelper.isBatteryOptimizationDisabled(this) &&
+                PermissionHelper.isAccessibilityServiceEnabled(this)
     }
 
     private fun onAllPermissionsReady() {
         PermissionHelper.setPermissionSetupComplete(this, true)
-        Toast.makeText(this, "All permissions granted! Sync is now active.", Toast.LENGTH_LONG).show()
+        Toast.makeText(this, "Sync is now active!", Toast.LENGTH_SHORT).show()
         startServices()
     }
 

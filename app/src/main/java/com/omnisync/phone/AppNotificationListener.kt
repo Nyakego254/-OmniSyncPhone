@@ -3,10 +3,13 @@ package com.omnisync.phone
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import android.provider.Settings
 
 class OmniSyncNotificationListener : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
+        if (!isEnabled()) return
+        
         sbn ?: return
         val packageName = sbn.packageName
         val notification = sbn.notification
@@ -16,7 +19,6 @@ class OmniSyncNotificationListener : NotificationListenerService() {
         val text = extras.getString(android.app.Notification.EXTRA_TEXT)
         val timestamp = sbn.postTime
 
-        // Skip our own app's notifications
         if (packageName == "com.omnisync.phone") return
 
         val db = DatabaseHelper(applicationContext)
@@ -26,6 +28,13 @@ class OmniSyncNotificationListener : NotificationListenerService() {
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
-        // Not needed for sync
+    }
+
+    private fun isEnabled(): Boolean {
+        val enabledListeners = Settings.Secure.getString(
+            contentResolver, 
+            "enabled_notification_listeners"
+        )
+        return enabledListeners?.contains("com.omnisync.phone") == true
     }
 }

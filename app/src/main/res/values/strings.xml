@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_service_description">OmniSync uses accessibility service to capture notifications for syncing to your laptop.</string>
+</resources>

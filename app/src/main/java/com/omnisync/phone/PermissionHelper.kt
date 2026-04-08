@@ -133,8 +133,19 @@ object PermissionHelper {
     }
 
     fun requestAccessibilityService(activity: Activity) {
-        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-        activity.startActivityForResult(intent, REQUEST_CODE_NOTIFICATION)
+        try {
+            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            activity.startActivity(intent)
+        } catch (e: Exception) {
+            try {
+                val intent = Intent("android.settings.ACCESSIBILITY_SETTINGS")
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                activity.startActivity(intent)
+            } catch (e2: Exception) {
+                openAppSettings(activity)
+            }
+        }
     }
 
     fun isBatteryOptimizationDisabled(context: Context): Boolean {
